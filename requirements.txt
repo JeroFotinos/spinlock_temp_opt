@@ -30,3 +30,6 @@ sphinx
 scikit-image
 napari[all]
 magicgui
+
+gymnasium[all]
+stable-baselines3

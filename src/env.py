@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Tuple, Any
 import numpy as np
 
+
 class AbstractThermalControlEnv(ABC):
     """
     Abstract interface for a thermal control environment.
@@ -25,7 +26,7 @@ class AbstractThermalControlEnv(ABC):
             Return the complete (hidden) state.
         render(mode: str = 'human'):
             Optionally render the current state.
-    
+
     Properties:
         action_space -> Any:
             The description of the action space (e.g., a gym.spaces.Box instance).
@@ -107,7 +108,7 @@ class AbstractThermalControlEnv(ABC):
         """
         pass
 
-    def render(self, mode: str = 'human'):
+    def render(self, mode: str = "human"):
         """
         Optionally render the current state of the environment.
 
@@ -125,4 +126,3 @@ class AbstractThermalControlEnv(ABC):
 
 
 # class NaiveEnv(AbstractThermalControlEnv):
-    
