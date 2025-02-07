@@ -27,10 +27,11 @@ class HeatEquationSolver:
 
     def apply_boundary_conditions(self):
         # Enforce room temperature (25°C) at the boundaries
-        self.state[0, :] = 25.0
-        self.state[-1, :] = 25.0
-        self.state[:, 0] = 25.0
-        self.state[:, -1] = 25.0
+        bound_temp = 10.0
+        self.state[0, :] = bound_temp
+        self.state[-1, :] = bound_temp
+        self.state[:, 0] = bound_temp
+        self.state[:, -1] = bound_temp
 
     def get_evolved_complete_state_multi(self, t_i, t_final, current_state, a_vector, centers):
         """
@@ -112,6 +113,7 @@ class TemperatureControlEnv(gym.Env):
 
         # Choose a time step dt for the solver (stability condition)
         self.dt_solver = min(self.dx**2, self.dy**2) / (4 * self.alpha)
+        self.dt_solver *= 0.5
 
         # Create an instance of the heat equation solver.
         self.solver = HeatEquationSolver(nodes_x, nodes_y, self.dx, self.dy, self.dt_solver, self.alpha, Lx, Ly)
@@ -121,7 +123,7 @@ class TemperatureControlEnv(gym.Env):
         # For demonstration, place sensors at a fraction of the resistor positions.
         # self.sensor_positions = [(x[0]/2, x[1]/2) for x in self.centers]
         # self.sensor_positions = self.centers
-        self.sensor_positions = [(x[0]+0.1, x[1]+0.1) for x in self.centers]
+        self.sensor_positions = [(x[0]+0.1, x[1]+0.1) for x in self.centers] + self.centers
 
         # For later analysis, store the full grid states at each action step.
         self.state_history = []
@@ -139,7 +141,7 @@ class TemperatureControlEnv(gym.Env):
 
     def step(self, action: np.ndarray):
         # Convert discrete actions into heat source amplitudes.
-        power_on = 50
+        power_on = 10
         a_vector = np.array(action, dtype=np.float32) * power_on
 
         # Evolve the grid state over t_action seconds.
@@ -174,7 +176,11 @@ class TemperatureControlEnv(gym.Env):
         # Reset the step counter.
         self.current_step = 0
         # Reset the grid state to room temperature.
-        self.solver.state = np.full((self.nodes_y, self.nodes_x), self.temp_lower_bound) + np.random.normal(0.0, 2.0, (self.nodes_y, self.nodes_x))
+        room_temp = 25.0
+        self.solver.state = (
+            np.full((self.nodes_y, self.nodes_x), room_temp) +
+            np.random.normal(0.0, 5.0, (self.nodes_y, self.nodes_x))
+        )
         self.solver.apply_boundary_conditions()
         self.state_history = [self.solver.state.copy()]
         # Return observation and info (empty dict)
@@ -190,7 +196,7 @@ class TemperatureControlEnv(gym.Env):
 
 # --- Training using PPO ---
 # Create a vectorized environment using the custom discrete-action environment.
-env = make_vec_env(lambda: TemperatureControlEnv(), n_envs=1)
+env = make_vec_env(lambda: TemperatureControlEnv(n=3, m=6), n_envs=1)
 policy_kwargs = {"net_arch": [8, 8]}
 
 # PPO supports discrete action spaces.
@@ -203,7 +209,7 @@ model = PPO.load("ppo_temperature_control_discrete")
 obs = env.reset()  # reset returns a tuple (observation, info)
 
 rewards_list = []
-num_steps = 500
+num_steps = 150
 
 for step in range(num_steps):
     action, _states = model.predict(obs)
@@ -231,7 +237,7 @@ import matplotlib.animation as animation
 # Create a figure and axis for the heatmap.
 fig, ax = plt.subplots()
 # Display the first grid state.
-cax = ax.imshow(grid_states[0], cmap='hot', interpolation='nearest', vmin=25, vmax=100)
+cax = ax.imshow(grid_states[0], cmap='hot', interpolation='nearest', vmin=5, vmax=50)
 fig.colorbar(cax)
 ax.set_title("Temperature Evolution during Testing Episode")
 
@@ -244,4 +250,8 @@ def animate(i):
 # Create the animation. Adjust the interval (milliseconds) as desired.
 ani = animation.FuncAnimation(fig, animate, frames=len(grid_states), interval=200, blit=False)
 
+# --- Save the animation as a GIF using Pillow ---
+ani.save("temperature_evolution.gif", writer="pillow", fps=5)
+
 plt.show()
+
